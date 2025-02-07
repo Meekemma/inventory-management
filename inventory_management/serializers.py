@@ -14,6 +14,8 @@ class CategorySerializer(serializers.ModelSerializer):
         instance.name = validated_data.get('name', instance.name)
         instance.save()
         return instance
+    
+
 
 
 class SupplierSerializer(serializers.ModelSerializer):
@@ -45,7 +47,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'category', 'supplier','quantity', 'price', 'description', 'created_at']
+        fields = ['id', 'name','sku', 'category', 'supplier','quantity', 'price', 'cost_price', 'description', 'created_at']
         read_only_fields = ['created_at']
 
     def validate_quantity(self, value):
@@ -59,15 +61,24 @@ class ProductSerializer(serializers.ModelSerializer):
         if value < 0.0:
             raise serializers.ValidationError('The price cannot be less than 0.0.')
         return value
+    
+    def validate_cost_price(self, value):
+        """Ensure the cost price is non-negative."""
+        if value < 0.0:
+            raise serializers.ValidationError('The cost price cannot be less than 0.0.')
+        return value
 
     def create(self, validated_data):
-        return Product.objects.create(**validated_data)  # No need to pop 'category'
+        return Product.objects.create(**validated_data)
+
 
     def update(self, instance, validated_data):
         instance.name = validated_data.get('name', instance.name)
+        instance.sku = validated_data.get('sku', instance.sku)
         instance.description = validated_data.get('description', instance.description)
         instance.quantity = validated_data.get('quantity', instance.quantity)
         instance.price = validated_data.get('price', instance.price)
+        instance.cost_price = validated_data.get('cost_price', instance.cost_price)
         instance.category = validated_data.get('category', instance.category)
         instance.save()
         return instance

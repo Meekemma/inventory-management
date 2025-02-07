@@ -91,11 +91,13 @@ def supplier_detail(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def products(request):
-    products = Product.objects.select_related("category")
+    products = Product.objects.select_related("category", "supplier")
     paginator = LimitOffsetPagination()
     paginated_products = paginator.paginate_queryset(products, request)
     serializer = ProductSerializer(paginated_products, many=True)
     return paginator.get_paginated_response(serializer.data)
+
+
 
 
 @api_view(['POST'])

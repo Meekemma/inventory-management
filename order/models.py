@@ -18,7 +18,7 @@ class Order(models.Model):
     total_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  
     ordered_date = models.DateTimeField(auto_now_add=True)  
     is_paid = models.BooleanField(default=False) 
-    received = models.BooleanField(default=False) 
+    # received = models.BooleanField(default=False) 
 
     class Meta:
         ordering = ['-ordered_date'] 
@@ -34,8 +34,8 @@ class Order(models.Model):
         """
         Calculate the total cost of all items in the order.
         """
-        order_items = self.orderitem_set.all()  # Fetch all items related to this order
-        Product_total = sum([item.get_item_total for item in order_items])  # Sum up the total cost of each item
+        order_items = self.orderitem_set.all() 
+        Product_total = sum([item.get_item_total for item in order_items])  
         return Product_total
 
     @property
@@ -44,7 +44,7 @@ class Order(models.Model):
         Calculate the total quantity of all items in the order.
         """
         order_items = self.orderitem_set.all()
-        total_quantity = sum([item.quantity for item in order_items])  # Sum up the quantities of each item
+        total_quantity = sum([item.quantity for item in order_items])  
         return total_quantity
 
 
@@ -52,7 +52,6 @@ class Order(models.Model):
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE) 
-    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)  
     quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)]) 
     date_added = models.DateTimeField(auto_now_add=True) 

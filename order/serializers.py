@@ -8,7 +8,6 @@ User = get_user_model()
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    supplier= serializers.SlugRelatedField(queryset=Supplier.objects.all(), slug_field='name')
     product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
     product_name = serializers.CharField(source='product.name', read_only=True)
     product_description = serializers.CharField(source='product.description', read_only=True)
@@ -17,7 +16,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OrderItem
-        fields = ('id', 'supplier', 'product', 'product_name', 'product_description', 'product_price', 'quantity', 'date_added')
+        fields = ('id', 'product', 'product_name', 'product_description', 'product_price', 'quantity', 'date_added')
         read_only_fields = ('id', 'date_added')
 
 
@@ -32,7 +31,7 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ('id', 'user', 'total_price', 'ordered_date', 'status', 'is_paid','received', 'order_items', 'product_items')
+        fields = ('id', 'user', 'total_price', 'ordered_date', 'status', 'is_paid','order_items', 'product_items')
         read_only_fields = ('id', 'user', 'total_price', 'ordered_date')
 
     def get_total_price(self, obj):
@@ -50,7 +49,6 @@ class OrderSerializer(serializers.ModelSerializer):
             user=user,
             status='pending',
             is_paid=False,
-            received=False
         )
 
         # Ensure the order is saved and has a primary key
@@ -61,13 +59,11 @@ class OrderSerializer(serializers.ModelSerializer):
         for item_data in order_items_data:
             product = item_data['product']
             quantity = item_data['quantity']
-            supplier = item_data['supplier']
 
             # Create or update the OrderItem
             order_item, item_created = OrderItem.objects.get_or_create(
                 order=order,
                 product=product,
-                supplier=supplier,
                 defaults={'quantity': quantity}  # Set the quantity if the item is created
             )
 

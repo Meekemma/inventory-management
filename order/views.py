@@ -5,7 +5,9 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .serializers import OrderSerializer
-from .models import Order
+from .models import Order, OrderItem
+
+from .utils import update_order_totals
 
 
 
@@ -20,6 +22,65 @@ def create_order(request):
         return Response({'message': 'Order created successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
     
     return Response({'message': 'Order creation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_order_item(request, order_item_id):
+    try:
+        order_item = OrderItem.objects.get(id=order_item_id, order__user=request.user)
+
+        new_quantity = request.data.get('quantity')
+        try:
+            new_quantity = int(new_quantity)
+        except (TypeError, ValueError):
+            return Response({'error': 'Invalid quantity format'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_quantity < 0:
+            return Response({'error': 'Quantity cannot be negative'}, status=status.HTTP_400_BAD_REQUEST)
+
+        order = order_item.order
+
+        if new_quantity == 0:
+            order_item.delete()
+            response_data = update_order_totals(order)
+
+            if response_data.get('deleted'):
+                return Response(response_data, status=status.HTTP_200_OK)
+
+            return Response({
+                'message': 'Order item removed successfully',
+                'updated_order': response_data
+            }, status=status.HTTP_200_OK)
+
+        # Update the quantity
+        order_item.quantity = new_quantity
+        order_item.save()
+
+        # Get the updated totals
+        response_data = update_order_totals(order)
+
+        return Response({
+            'message': 'Order item updated successfully',
+            'order_item': {
+                'id': order_item.id,
+                'quantity': order_item.quantity,
+                'item_total': order_item.get_item_total
+            },
+            'updated_order': response_data
+        }, status=status.HTTP_200_OK)
+
+    except OrderItem.DoesNotExist:
+        return Response({'error': 'Order item not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+
 
 
 
