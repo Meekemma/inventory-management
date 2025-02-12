@@ -9,7 +9,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('base/', include('base.urls')),
     path('inventory_management/', include('inventory_management.urls')),
-    path('order/', include('order.urls')),
+    path('order/', include('order.urls')),  
+    path('purchase_order/', include('purchase_order.urls')),
     path('report/', include('report.urls')),
 
 ]+ debug_toolbar_urls()

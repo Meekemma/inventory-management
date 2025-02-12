@@ -92,19 +92,17 @@ def track_status(request):
     """
     order_status = request.query_params.get('status', None)
     is_paid = request.query_params.get('is_paid', None)
-    received = request.query_params.get('received', None)
 
     # Check if all required query parameters are provided
-    if order_status is None or is_paid is None or received is None:
+    if order_status is None or is_paid is None:
         return Response( {"error": "All query parameters ('status', 'is_paid', 'received') are required."}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         # Convert is_paid and received to boolean
         is_paid = is_paid.lower() == 'true'
-        received = received.lower() == 'true'
 
         # Filter orders
-        orders = Order.objects.filter(status=order_status, is_paid=is_paid, received=received)
+        orders = Order.objects.filter(status=order_status, is_paid=is_paid)
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -126,7 +124,7 @@ def status_update(request, order_id):
     order = get_object_or_404(Order, id=order_id)
 
     # Define allowed fields for update
-    allowed_fields = {'status', 'is_paid', 'received'}
+    allowed_fields = {'status', 'is_paid'}
     update_data = {key: request.data[key] for key in request.data if key in allowed_fields}
 
     # Update the order with the provided data

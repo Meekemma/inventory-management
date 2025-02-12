@@ -9,6 +9,7 @@ from inventory_management.models import Product
 from inventory_management.serializers import ProductSerializer
 from .serializers import LowStockAlertSerializer
 from .models import LowStockAlert
+from .utils import get_sales_data
 
 
 # Create your views here.
@@ -20,8 +21,6 @@ def low_stock_alerts(request):
     products = [alert.product for alert in alerts]  
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
-
-
 
 
 
@@ -47,3 +46,28 @@ def low_stock_products(request):
     # Serialize and return the data
     serializer = ProductSerializer(low_stock_products, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+@api_view(['GET'])
+def sales_report(request):
+    
+    
+    period = request.query_params.get('period', None)
+    start_date = request.query_params.get('start_date', None)
+    end_date = request.query_params.get('end_date', None)
+
+    try:
+        # Call the helper function to get sales data
+        data = get_sales_data(period=period, start_date=start_date, end_date=end_date)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Handle empty data scenario
+    if not data:
+        return Response(
+            {"message": "No sales data available for the specified period or range."},
+            status=status.HTTP_200_OK,
+        )
+
+    return Response(data, status=status.HTTP_200_OK)
