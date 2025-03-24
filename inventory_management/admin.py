@@ -20,7 +20,7 @@ class SupplierAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('id','name', 'sku','category', 'quantity', 'price', 'cost_price', 'created_at')
+    list_display = ('id','name', 'supplier','sku','category', 'quantity', 'price', 'cost_price', 'created_at')
     list_filter = ('category',)
     search_fields = ('name', 'category__name')
 

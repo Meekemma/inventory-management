@@ -1,15 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User
+from .models import *
 from django.utils.translation import gettext_lazy as _
 
-
-# Register your models here.
-admin.site.site_header = "inventory management Administration"
-admin.site.site_title = "inventory management Admin"
-admin.site.index_title = "Welcome to inventory management Admin Panel"
-
-
+admin.site.site_header = "Smart Inventory Administration"
+admin.site.site_title = "Smart Inventory Admin"
+admin.site.index_title = "Smart Inventory Admin Panel"
 
 
 
@@ -41,5 +37,11 @@ class UserAdmin(BaseUserAdmin):
 
     get_groups_display.short_description = 'Groups'
 
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user_id','user', 'first_name', 'last_name', 'email','profile_pic', 'phone_number', 'gender', 'country','state', 'created_at', 'updated_at')
+    search_fields = ('user__email', 'first_name', 'last_name', 'phone_number')
+    list_filter = ('gender', 'country', 'created_at')
+
 
 admin.site.register(User, UserAdmin)
+admin.site.register(UserProfile, UserProfileAdmin)

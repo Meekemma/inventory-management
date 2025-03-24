@@ -1,0 +1,21 @@
+# Ignore environment-specific files
+env/
+*.env
+
+# Ignore SQLite database file
+*.sqlite3
+
+# Ignore compiled Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore Docker-related files
+*.log
+*.pid
+docker-compose.override.yml
+
+# Ignore static and media files
+staticfiles/
+media/

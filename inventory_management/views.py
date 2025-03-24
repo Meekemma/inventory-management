@@ -7,6 +7,8 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from .models import Category,Product,InventoryTransaction,Supplier
 from .serializers import CategorySerializer,ProductSerializer,InventoryTransactionSerializer,SupplierSerializer
+from .filters import ProductFilter
+
 
 
 # Create a new category
@@ -14,7 +16,7 @@ from .serializers import CategorySerializer,ProductSerializer,InventoryTransacti
 @permission_classes([IsAuthenticated])
 def create_category(request):
     serializer = CategorySerializer(data=request.data)
-    if serializer.is_valid():
+    if serializer.is_valid(raise_exception=True):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -28,6 +30,9 @@ def categories(request):
     categories = Category.objects.all()
     serializer = CategorySerializer(categories, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)  
+
+
+
 
 
 @api_view(['PUT', 'DELETE'])
@@ -47,6 +52,10 @@ def update_category(request, pk):
         return Response({"detail": "Category deleted"}, status=status.HTTP_204_NO_CONTENT)
     
 
+
+
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def suppliers(request):
@@ -62,6 +71,8 @@ def suppliers(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+
+
 
 
 @api_view(['GET', 'PUT', 'DELETE'])
@@ -91,9 +102,24 @@ def supplier_detail(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def products(request):
+    """
+    Retrieve a paginated list of products with category and supplier details.
+    Supports filtering by name, category, supplier, sku, quantity, price, cost_price, description, and created_at.
+    """
+    # Query with select_related for optimization
     products = Product.objects.select_related("category", "supplier")
+    
+    # Apply filters using ProductFilter
+    filterset = ProductFilter(request.query_params, queryset=products)
+    if not filterset.is_valid():
+        return Response({"detail": filterset.errors}, status=400)
+    filtered_products = filterset.qs
+
+    # Apply pagination
     paginator = LimitOffsetPagination()
-    paginated_products = paginator.paginate_queryset(products, request)
+    paginated_products = paginator.paginate_queryset(filtered_products, request)
+    
+    # Serialize and return
     serializer = ProductSerializer(paginated_products, many=True)
     return paginator.get_paginated_response(serializer.data)
 
@@ -103,17 +129,26 @@ def products(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_products(request):
+    """
+    Create a new product. Expects category and supplier as names (e.g., 'Tools', 'Acme Corp').
+    """
     serializer = ProductSerializer(data=request.data)
     if serializer.is_valid(raise_exception=True):
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(
+            {"detail": "Product created successfully", "data": serializer.data},
+            status=status.HTTP_201_CREATED
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 
 @api_view(['GET',  'PUT', 'DELETE'])  
 @permission_classes([IsAuthenticated])
 def update_products(request, pk):
-    product = get_object_or_404(Product.objects.select_related("category"), pk=pk) 
+    product = get_object_or_404(Product.objects.select_related("category", "supplier"), pk=pk) 
 
     if request.method == 'GET':
         serializer = ProductSerializer(product)
@@ -124,12 +159,14 @@ def update_products(request, pk):
         serializer = ProductSerializer(product, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):  
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response({"detail": "Product updated successfully", "data": serializer.data}, status=status.HTTP_200_OK)
 
 
     elif request.method == 'DELETE':
         product.delete()
         return Response({"detail": "Product deleted"}, status=status.HTTP_204_NO_CONTENT)
+
+
 
 
 
@@ -144,6 +181,8 @@ def create_transaction(request):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 

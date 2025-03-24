@@ -1,7 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager,PermissionsMixin,Group
+from django.utils import timezone
+from django.core.validators import FileExtensionValidator
 
-
+import uuid
 
 # Create your models here.
 class UserManager(BaseUserManager):
@@ -20,7 +22,7 @@ class UserManager(BaseUserManager):
 
         user = self.model(email=email, first_name=first_name, last_name=last_name)
         user.set_password(password)
-        user.save(using=self.db)
+        user.save(using=self._db)
         return user
 
 
@@ -37,6 +39,7 @@ AUTH_PROVIDERS = {'email': 'email', 'google': 'google'}
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(max_length=255, unique=True)
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
@@ -66,15 +69,49 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.email = self.email.lower()
         super(User, self).save(*args, **kwargs)
 
+
+
+
+class OneTimePassword(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=5)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.email} - passcode"
+    
+    def is_valid(self):
+        # OTP is valid for 5 minutes
+        now = timezone.now()
+        return now - self.created_at <= timezone.timedelta(minutes=5)
+
+
+
+
+GENDER_CHOICES = (
+    ('Male', 'Male'),
+    ('Female', 'Female'),
+    ('Others', 'Others'),
+)
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
+    first_name = models.CharField(max_length=200)
+    last_name = models.CharField(max_length=200)
+    email = models.EmailField(unique=True, null=True, blank=True)  
+    profile_pic = models.ImageField(
+        upload_to='image/profile_pic',
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])]
+    )
+    phone_number = models.CharField(max_length=15)
+    gender = models.CharField(max_length=6, choices=GENDER_CHOICES, null=True)
+    country = models.CharField(max_length=50, null=True)
+    state = models.CharField(max_length=50, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"User Profile for {self.email or 'No Email'}"
+
     class Meta:
-        ordering = ['-created_at'] 
-
-
-
-
-
-
-
-
-
-
+        ordering = ['-created_at']

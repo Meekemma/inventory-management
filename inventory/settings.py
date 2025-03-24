@@ -14,10 +14,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-(qbqzz9-d@$x&dmd9g6)1ha!ozm*_u^d_8-qj3j83k&9wr@t8q'
+
+SECRET_KEY = os.getenv('SECRET_KEY') 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = []
 
@@ -85,6 +86,20 @@ REST_FRAMEWORK = {
     # Pagination settings
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 10,  
+
+
+     #Throttling Settings
+    'DEFAULT_THROTTLE_CLASSES': [
+
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    "DEFAULT_THROTTLE_RATES": {       
+        "login": "3/minute",      
+        "register": "5/minute",
+        "logout": "5/minute",     
+        "change_password": "3/hour", 
+        "update_profile": "10/hour", 
+    },
     
     
 }
@@ -204,7 +219,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_DIRS = []
 
 
 # Media files (Uploaded by users)
