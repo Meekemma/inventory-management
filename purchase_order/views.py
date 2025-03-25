@@ -1,60 +1,40 @@
 from django.shortcuts import render
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .serializers import PurchaseOrderSerializer
+from .serializers import PurchaseOrderSerializer, PurchaseOrderItemSerializer
 from .models import PurchaseOrder, PurchaseOrderItem
 
 
-
-
-
-# Create your views here.
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_purchase_order(request):
     serializer = PurchaseOrderSerializer(data=request.data, context={'request': request})
-    
-    if serializer.is_valid(raise_exception=True):
-        serializer.save()
-        return Response({'message': 'Order created successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
-    
-    return Response({'message': 'Order creation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response({'message': 'Order created successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
 
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def track_order_status(request):
-    order_status = request.query_params.get('status', None)
-    is_paid = request.query_params.get('is_paid', None)
-    received = request.query_params.get('received', None)
-
-    if order_status is None or is_paid is None or received is None:
-        return Response({"error": "All query parameters ('status', 'is_paid', 'received') are required."}, status=status.HTTP_400_BAD_REQUEST)
+    filters = {}
+    if 'status' in request.query_params:
+        filters['status'] = request.query_params['status']
+    if 'is_paid' in request.query_params:
+        filters['is_paid'] = request.query_params['is_paid'].lower() == 'true'
+    if 'received' in request.query_params:
+        filters['received'] = request.query_params['received'].lower() == 'true'
 
     try:
-        is_paid = is_paid.lower() == 'true' if is_paid else None
-        received = received.lower() == 'true' if received else None
-
-        # Filter only if the params exist
-        filters = {"status": order_status}
-        if is_paid is not None:
-            filters["is_paid"] = is_paid
-        if received is not None:
-            filters["received"] = received
-
         orders = PurchaseOrder.objects.filter(**filters)
         serializer = PurchaseOrderSerializer(orders, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
     except Exception as e:
         return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    
 
 
 
@@ -62,13 +42,52 @@ def track_order_status(request):
 @permission_classes([IsAuthenticated])
 def order_status_update(request, order_id):
     order = get_object_or_404(PurchaseOrder, id=order_id)
+    serializer = PurchaseOrderSerializer(order, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response({"message": "Order updated successfully", "data": serializer.data}, status=status.HTTP_200_OK)
 
-    allowed_fields = {'status', 'is_paid', 'received'}
-    update_data = {key: request.data[key] for key in request.data if key in allowed_fields}
 
-    if update_data:
-        for key, value in update_data.items():
-            setattr(order, key, value)
-        order.save()
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_purchase_order(request, order_id):
+    order = get_object_or_404(PurchaseOrder, id=order_id)
+    serializer = PurchaseOrderSerializer(order)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
-    return Response({"message": "Order updated successfully", "data": PurchaseOrderSerializer(order).data}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manage_purchase_order_item(request, order_id, item_id=None):
+    order = get_object_or_404(PurchaseOrder, id=order_id)
+    
+    if request.method == 'POST':
+        # Add a new item
+        serializer = PurchaseOrderItemSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(order=order, unit_price=serializer.validated_data['product'].cost_price)
+        return Response({'message': 'Item added successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
+    
+    elif request.method == 'PUT':
+        # Update an existing item
+        item = get_object_or_404(PurchaseOrderItem, id=item_id, order=order)
+        serializer = PurchaseOrderItemSerializer(item, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'message': 'Item updated successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
+    
+    elif request.method == 'DELETE':
+        # Delete an existing item
+        item = get_object_or_404(PurchaseOrderItem, id=item_id, order=order)
+        item.delete()
+        return Response({'message': 'Item deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_purchase_order(request, order_id):
+    order = get_object_or_404(PurchaseOrder, id=order_id)
+    order.delete()
+    return Response({'message': 'Order deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
