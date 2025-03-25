@@ -79,11 +79,10 @@ def order_detail(request, order_id):
 
 
 
-
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def update_order_item(request, order_item_id):
-    """Update the quantity of an order item, adjusting stock and order totals."""
+    """Update the quantity of a single order item."""
     try:
         order_item = OrderItem.objects.get(id=order_item_id, order__user=request.user)
         new_quantity = request.data.get('quantity')
@@ -97,25 +96,10 @@ def update_order_item(request, order_item_id):
             return Response({'error': 'Quantity cannot be negative'}, status=status.HTTP_400_BAD_REQUEST)
 
         order = order_item.order
-        if order.status != 'pending':
-            return Response({'error': 'Can only update items in pending orders'}, status=status.HTTP_400_BAD_REQUEST)
+        if order.status != 'pending' or order.is_paid:
+            return Response({'error': 'Can only update items in pending, unpaid orders'}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            # Calculate stock adjustment
-            old_quantity = order_item.quantity
-            quantity_diff = new_quantity - old_quantity
-
-            if quantity_diff > 0:  # Increasing quantity
-                if order_item.product.quantity < quantity_diff:
-                    return Response(
-                        {'error': f"Insufficient stock for {order_item.product.name}. Available: {order_item.product.quantity}"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                order_item.product.quantity -= quantity_diff
-            elif quantity_diff < 0:  # Decreasing quantity
-                order_item.product.quantity -= quantity_diff  # Adds back the difference (negative diff)
-
-            # Update or delete the order item
             if new_quantity == 0:
                 order_item.delete()
                 response_data = update_order_totals(order)
@@ -128,9 +112,7 @@ def update_order_item(request, order_item_id):
             else:
                 order_item.quantity = new_quantity
                 order_item.save()
-
-            order_item.product.save()
-            response_data = update_order_totals(order)
+                response_data = update_order_totals(order)
 
             return Response({
                 'message': 'Order item updated successfully',

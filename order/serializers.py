@@ -1,3 +1,4 @@
+import logging
 from rest_framework import serializers
 from .models import Order, OrderItem,Supplier
 from inventory_management.models import Product
@@ -5,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 
@@ -44,6 +46,7 @@ class OrderSerializer(serializers.ModelSerializer):
     total_price = serializers.SerializerMethodField()
     product_items = serializers.SerializerMethodField()
 
+
     class Meta:
         model = Order
         fields = ('id', 'user', 'total_price', 'ordered_date', 'status', 'is_paid', 'order_items', 'product_items')
@@ -56,17 +59,17 @@ class OrderSerializer(serializers.ModelSerializer):
         return obj.get_product_items
 
     def create(self, validated_data):
-        """Create a new order with items, updating stock atomically."""
+        """Create or update the user's single unsettled order."""
         user = self.context['request'].user
         order_items_data = validated_data.pop('orderitem_set', [])
 
         with transaction.atomic():
-            # Create order (user is nullable, so allow None if intentional)
-            order = Order.objects.create(
-                user=user if user.is_authenticated else None,
+            # Get or create the user's single pending, unpaid order
+            order, created = Order.objects.get_or_create(
+                user=user, 
                 status='pending',
                 is_paid=False,
-                total_price=0.00  # Initial value, updated later
+                defaults={'total_price': 0.00}
             )
 
             # Process order items
@@ -74,20 +77,15 @@ class OrderSerializer(serializers.ModelSerializer):
                 product = item_data['product']
                 quantity = item_data['quantity']
 
-                # Update stock
-                if product.quantity < quantity:
-                    raise serializers.ValidationError(
-                        f"Insufficient stock for {product.name}. Available: {product.quantity}"
-                    )
-                product.quantity -= quantity
-                product.save()
-
-                # Create order item
-                OrderItem.objects.create(
+                # Create or update order item (add quantity if it exists)
+                order_item, item_created = OrderItem.objects.get_or_create(
                     order=order,
                     product=product,
-                    quantity=quantity
+                    defaults={'quantity': quantity}
                 )
+                if not item_created:
+                    order_item.quantity += quantity  # Increment quantity
+                    order_item.save()
 
             # Update total price
             order.total_price = order.get_product_total
@@ -96,40 +94,35 @@ class OrderSerializer(serializers.ModelSerializer):
         return order
 
     def update(self, instance, validated_data):
-        """Update an existing order, handling status changes and item updates."""
         order_items_data = validated_data.pop('orderitem_set', None)
 
-        with transaction.atomic():
-            # Update status or is_paid if provided
-            instance.status = validated_data.get('status', instance.status)
-            instance.is_paid = validated_data.get('is_paid', instance.is_paid)
+        try:
+            with transaction.atomic():
+                # Update status or is_paid if provided
+                instance.status = validated_data.get('status', instance.status)
+                instance.is_paid = validated_data.get('is_paid', instance.is_paid)
 
-            if order_items_data:
-                # Revert stock for existing items
-                for item in instance.orderitem_set.all():
-                    item.product.quantity += item.quantity
-                    item.product.save()
-                instance.orderitem_set.all().delete()  # Clear existing items
-
-                # Add new items and update stock
-                for item_data in order_items_data:
-                    product = item_data['product']
-                    quantity = item_data['quantity']
-                    if product.quantity < quantity:
-                        raise serializers.ValidationError(
-                            f"Insufficient stock for {product.name}. Available: {product.quantity}"
+                if order_items_data and instance.status == 'pending' and not instance.is_paid:
+                    for item_data in order_items_data:
+                        product = item_data['product']
+                        quantity = item_data['quantity']
+                        order_item, created = OrderItem.objects.get_or_create(
+                            order=instance,
+                            product=product,
+                            defaults={'quantity': quantity}
                         )
-                    product.quantity -= quantity
-                    product.save()
+                        if not created:
+                            order_item.quantity += quantity
+                            order_item.save()
 
-                    OrderItem.objects.create(
-                        order=instance,
-                        product=product,
-                        quantity=quantity
-                    )
+                # Save the instance explicitly
+                instance.total_price = instance.get_product_total
+                instance.save(update_fields=['total_price', 'status', 'is_paid'])
+                logger.info(f"Order {instance.id} updated: status={instance.status}, is_paid={instance.is_paid}")
 
-            # Update total price
-            instance.total_price = instance.get_product_total
-            instance.save(update_fields=['total_price'])
+        except ValueError as e:
+            # Catch stock-related errors from the signal
+            logger.error(f"Failed to update order {instance.id}: {str(e)}")
+            raise serializers.ValidationError(str(e))
 
         return instance
